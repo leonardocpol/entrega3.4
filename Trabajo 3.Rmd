@@ -1,0 +1,364 @@
+---
+title: "ENTREGA 3-4"
+author: 'Estefano Leonardo Pilco Cañari'
+date: "Ciclo 2022-1"
+subtitle: 'Estadística para el análisis político 2'
+
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    math: katex
+---
+
+```{r,echo=FALSE,message=FALSE}
+library(rio)
+data=import("https://github.com/leonardocpol/Base-de-Datos-MAGA/blob/main/base.xlsx?raw=true")
+data1=import("https://github.com/SebasVillalobos07/Estadistic2/blob/main/Matr%C3%ADcula_mundo.xlsx?raw=true")
+```
+
+### 1. INTRO Y OBJETIVOS
+
+El presente trabajo busca realizar diversos análisis a través de la utilización de variables de naturaleza ecléctica, tomando en el centro del estudio, como variable independiente, la Inequidad de Género. Así, se comenzará con un análisis de regresión que trate de demostrar cómo un grupo de variables independientes inciden en una dependiente; posteriormente, se utilizará el análisis de clustering para extraer determinados grupos entre las unidades de analisis estudiadas; y por último, utilizaremos el analisis factorial para conocer si el conjunto de variables que utilizamos representan algun concepto o variable latente. 
+
+### 2. EXPLICACIÓN DE LA DEPENDIENTE Y SUSTENTAR CON LITERATURA LAS INDEPENDIENTES PROPUESTAS
+La variable dependiente que se propone es el índice "Desigualdad de género", y las variables independientes propuestas son el "PBI per capita" de un país, la "expectativa de vida de mujeres" y el nivel de "educación", representado en un índice. La variable dependiente "Desigualdad de género" fue obtenida en el Human Development Reports del Programa De Las Naciones Unidas para el Desarrollo. Este refleja las desventajas basadas en el género en tres dimensiones: salud reproductiva, empoderamiento y mercado laboral. Posteriormente se propuso la variable independiente "PBI per capita"; esta es una variable económica cuya relevancia se sostiene en diversos estudios, como la mostrada por el European Institute for Gender Equiality, que recalca cómo disminuir la inéquidad de género tendría impactos fuertes y positivos en en el crecimiento del PBI per capita a través del tiempo. Asimiso, se propone la variable "Expectativa de vida en mujeres". El estudio Gender inequality and the gender gap in life expectancy in the European Union de las autoras Petra Kolip y Cornelia Lange encuentran una correlación positiva entre la brecha de género en la esperanza de vida y el índice de Inequidad de género. Por último, encontramos la variable "Educación", expresada en un índice; por cuestiones sociopolíticas y culturales la Educación se relaciona a la Inequidad de Género en el que el rol femenino siempre estuvo relegado en la sociedad. Esta relación la expresa Radhika Kapur en su texto Gender Inequiality in Education, donde menciona cómo en las instituciones educativas se ha experimentado la desigualdad de género. Las niñas han sido discriminadas en varios aspectos en comparación con sus homólogos masculinos.
+
+
+
+### 3. ANÁLISIS DE REGRESIÓN 
+En la tabla se puede observar el análisis de regresión entre nuestra variable dependiente Desigualdad de género y nuestras variables independientes 
+
+```{r,echo=FALSE,message=FALSE}
+library("stargazer")
+modelo2=formula(gender_inequality~gdp+life_expectancy_female+education)
+reg2=lm(modelo2,data=data)
+```
+
+```{r}
+stargazer(reg2,type = "text",intercept.bottom = FALSE)
+summary(reg2)
+```
+
+### 4. ANÁLISIS DE CLUSTER
+Para realizar este analisis se agregan nuevas variables de la base de datos de mi compañero Sebastián. 
+
+```{r,echo=FALSE,message=FALSE}
+keep=c(1,2,3,4,5)
+data=data[,keep]
+keep1=c(1,2,4,5)
+data1=data1[,keep1]
+names(data1)[1]="country"
+```
+
+
+```{r,echo=FALSE,message=FALSE}
+allData=merge(data,data1)
+```
+
+
+```{r,echo=FALSE,message=FALSE}
+library(BBmisc)
+allData[,-1]=normalize(allData[,-1],method='standardize')
+allData=allData[complete.cases(allData),]
+
+allData$gender_inequality=-1*allData$gender_inequality
+allData$Pobreza=-1*allData$Pobreza
+
+dataClus=allData[,-1]
+row.names(dataClus)=allData$country
+```
+
+
+```{r,echo=FALSE,message=FALSE}
+library(cluster)
+g.dist = daisy(dataClus, metric="gower")
+set.seed(123)
+pam.resultado=pam(g.dist,3,cluster.only = F)
+dataClus$pam=pam.resultado$cluster
+proyeccion = cmdscale(g.dist, k=2,add = T) 
+dataClus$dim1 <- proyeccion$points[,1]
+dataClus$dim2 <- proyeccion$points[,2]
+library("ggplot2")
+base= ggplot(dataClus,aes(x=dim1, y=dim2,label=row.names(dataClus))) 
+base= ggplot(dataClus,aes(x=dim1, y=dim2)) +  coord_fixed()
+set.seed(123)
+grupos=3
+res.pam=pam(g.dist,k = grupos,cluster.only = F)
+dataClus$pam=res.pam$cluster
+proyeccion = cmdscale(g.dist, k=2,add = T)
+dataClus$dim1 <- proyeccion$points[,1]
+dataClus$dim2 <- proyeccion$points[,2]
+base= ggplot(dataClus,aes(x=dim1, y=dim2,label=row.names(dataClus))) 
+```
+
+```{r}
+base + geom_text(size=2, aes(color=as.factor(pam)))  + labs(title = "PAM") 
+```
+
+### 5. ANÁLISIS FACTORIAL
+A través del análisis se recomienda agrupar la data que tenemos en 1 FACTOR o VARIABLE LATENTE; además, se deja de lado la variable "gasto en educación" por no aportar significativamente al factor. 
+
+```{r,echo=FALSE,message=FALSE}
+dontselect=c("country")
+select=setdiff(names(allData),dontselect) 
+theData=allData[,select]
+library(polycor)
+corMatrix=polycor::hetcor(theData)$correlations
+library(ggcorrplot)
+library(psych)
+library(matrixcalc)
+library(GPArotation)
+resfa <- fa(theData,
+            nfactors = 1,
+            cor = 'mixed',
+            rotate = "varimax",
+            fm="minres")
+```
+
+```{r}
+fa.diagram(resfa)
+```
+
+### 6. CONCLUSIONES 
+
+En primer lugar, a través del análisis de regresión: Mi hipótesis sostendrá que la Desigualdad de género es afectada por el PBI per cápita de un país y la expectativa de vida de las mujeres, controlando ambas por el nivel de educación. El análisis de regresión nos arroja (se ve en la tabla) una modelo fuerte. Sin embargo, cuando se realizan los diagnósticos de regresión, no se logran pasar todas las pruebas, por lo que sostendremos que la hipótesis propuesta no es perfecta, y podría no cumplir para toda ocasión en la que se pretenda demostrar la relación entre las variables descritas. 
+En segundo lugar, A través del análisis de conglomerados: para analizar conglomerados se tuvo que hacer merge entre mi base datos y la de un compañero. Así, se ganó nuevas variables como las de “Matrícula educativa”, “Gasto en educación” y “Pobreza”. Con la adición de estas pasamos a analizar conglomerados. Así, encontramos en el proceso que lo mejor es dividir nuestras unidades de análisis en tres grupos y analizarlo a través de pam (o sea, la estrategia de partición). Podemos notar lo aseverado en el gráfico. Concluimos así que nuestras unidades de análisis, afectados por todas las variables previamente mencionadas, se pueden dividir en tres grupos bastante bien diferenciados. 
+En tercer lugar, A través del análisis factorial: Trabajando nuevamente con la unión entre la base de datos y la de mi compañero se plantea la posibilidad de agrupar la data que tenemos en uno o mas factores o variables latentes. Para ver la posibilidad o imposibilidad de esto se realiza el análisis de variables latentes. El proceso de análisis factorial exploratorio nos arroja que se recomienda agrupar las variables en 1 FACTOR o VARIABLE LATENTE; además, se deja de lado la variable "gasto en educación" por no aportar significativamente al factor. De esa manera, obtenemos el Resultado visual que muestra detalladamente qué factor es el que aporta más al factor en potencia y la ausencia del factor “gasto en educación” por su pobre significancia al momento de aportar. 
+
+
+### 7. ANEXOS
+
+
+```{r,echo=FALSE,message=FALSE}
+library(rio)
+data=import("https://github.com/leonardocpol/Base-de-Datos-MAGA/blob/main/base.xlsx?raw=true")
+data1=import("https://github.com/SebasVillalobos07/Estadistic2/blob/main/Matr%C3%ADcula_mundo.xlsx?raw=true")
+```
+
+**7.a) ANÁLISIS DE REGRESIÓN Y DIAGNÓSTICOS**
+
+Partimos analizando cómo la variable "Desigualdad de género" puede ser afectada por determinados factores.
+Nuestra primera hipotesis sostendrá que la "Desigualdad de género" es afectada por el "PBI per capita" de un país, controlando por un índice que representa "Educación". 
+Cuando probamos esta primera hipótesis observamos que PBI tiene efecto signicativo al 0.01 (indicado por los tres asteristicos); segundo, que ese efecto es inverso, pues el coeficiente calculado es negativo; y tercero, que la magnitud de ese efecto es -0.000002661, lo que indica cuánto varía la variable desigualdad de género en promedio cuando PBI se incrementa en una unidad, controlando por la variable Educación. Además, el R cuadrado ajustado (0.837) nos brinda una muestra de la cercanía a una situación perfecta (cuando vale 1). 
+```{r}
+modelo1=formula(gender_inequality~gdp+education)
+reg1=lm(modelo1,data=data)
+library(stargazer)
+stargazer(reg1,type = "text",intercept.bottom = FALSE)
+```
+
+                                   + gender_inequality = 0.908 + -0.0000026xgdp + -0.757xeducation + ϵ
+                    
+Nuestra segunda hipotesis sostendrá que la "Desigualdad de género" es afectada por el "PBI per capita" de un país y la "Expectativa de vida de mujeres", controlando ambas por el índice que representa "Educación". 
+Cuando probamos esta segunda hipótesis observamos que PBI tiene un efecto significativo al 0.01 (indicado por los tres asteriscos); ese efecto es inverso, pues el coeficiente calculado es negativo; y la magnitud de ese efecto es -0.000002083, lo que indica cuánto varía Desigualdad de género en promedio cuando PBI se incremente en una unidad, controlando por la variable educación. Así mismo, vemos que la variable expectativa de vida de las mujeres tiene efecto significativo al 0.01 (indicado por los astericos); ese efecto es indirecto, pues el coeficiente calculado es negativo; y la magnitud de ese efecto es -0.009, lo que indica cuánto varía Desigualdad de género en promedio cuando la variable se incrementa en una unidad, controlando por educación. 
+```{r}
+modelo2=formula(gender_inequality~gdp+life_expectancy_female+education)
+reg2=lm(modelo2,data=data)
+stargazer(reg2,type = "text",intercept.bottom = FALSE)
+```
+
+                 + gender_inequality = 1.366 + -0.0000020xgdp + -0.009xlife_expectancy_female + -0.478xeducation + ϵ
+
+Asimismo, notamos que hay una variación de un modelo a otro del valor del Residual Standar Error (RSE). Por ello, vale la pena preguntarse si esta disminución del error es significativa. La comparación de modelos usando la tabla de análisis de varianza (anova) propone como hipótesis nula que los modelos no difieren (no se ha reducido el error al pasar de un modelo al otro). Como la comparación es significativa (viendo el Pr(>F)), rechazamos igualdad de modelos: el modelo 2 sí reduce el error al incluir una variable más. Por lo tanto, nos quedamos con el modelo 2. 
+```{r}
+tanova=anova(reg1,reg2)
+stargazer(tanova,type = 'text',summary = F,title = "Tabla de Análisis de Varianza")
+```
+
+Continuando, para que se considere que el modelo de regresión elegido es el adecuado, debemos verificar algunos requisitos a posteriori. Para ello, aplicamos los diagnósticos de regresión. 
+
++ 7.a.a) Linealidad: analizando el gráfico, se asume relación lineal entre Y y Xs
+```{r}
+plot(reg2, 1)
+```
+
++ 7.a.b) Homocedasticidad: se asume que el error del modelo de regresión no afecta la varianza o dispersión de la estimación.
+```{r}
+plot(reg2, 3)
+```
+También podemos utilizar el test de Breusch-Pagan:
+```{r}
+library(lmtest)
+bptest(reg2)
+```
+La probabilidad de homocedasticidad se muestra a través del p-value que es menor a 0.05, por lo que se rechaza que el modelo muestre homocedasticidad. 
+
++ 7.a.c) Normalidad de los residuos: los residuos, la diferencia entre "Desigualdad de género" (valores de la variable) y "Desigualda de género" (valores esperados a través de la ecuación) deben distribuirse de manera normal. 
+```{r}
+plot(reg2, 2)
+```
+Podemos aplicar el test de Shapiro a los residuos:
+```{r}
+shapiro.test(reg2$residuals)
+```
+
++ 7.a.d) No multicolinelidad: si los predictores tienen una correlación muy alta entre sí, hay multicolinealidad, lo cual no es deseable. Vemos que ninguno es mayor a 5, por lo que no hay problema. 
+```{r}
+library(DescTools)
+VIF(reg2) 
+```
+
++ 7.a.e) Valores influyentes: Hay casos particulares, que tienen la capacidad de trastocar lo que el modelo representa. A veces detectándolos y suprimiéndolos, podemos ver un mejor modelo.
+```{r}
+plot(reg2, 5)
+```
+Aquí podemos ver si es que existen los casos influyentes. Normalmente le prestamos atencion al indice de Cook y a los valores predecidos (los hat values):
+```{r}
+checkReg2=as.data.frame(influence.measures(reg2)$is.inf)
+head(checkReg2)
+checkReg2[checkReg2$cook.d & checkReg2$hat,]
+```
+
+
+
+
+
+
+
+**7.b) ANÁLISIS DE CONGLOMERADOS** 
+
+Para hacer el análisis de conglomerados partimos de dos bases de datos con la misma unidad de análisis (países); posteriormente procederemos a hacer merge entre ellas y analizarlas. A continuación se verifica la distribución de las variables (y posible transformación). Al observar, estandarizamos.
+
+```{r,echo=FALSE,message=FALSE}
+keep=c(1,2,3,4,5)
+data=data[,keep]
+
+
+keep1=c(1,2,4,5)
+data1=data1[,keep1]
+
+names(data1)[1]="country"
+allData=merge(data,data1)
+
+allData[,-1]=normalize(allData[,-1],method='standardize')
+allData=allData[complete.cases(allData),]
+
+allData[,-1]=normalize(allData[,-1],method='standardize')
+allData=allData[complete.cases(allData),]
+dataClus=allData[,-1]
+row.names(dataClus)=allData$country
+```
+
+```{r}
+boxplot(allData[,-1])
+boxplot(normalize(allData[,-1],method='range',range=c(0,1)))
+boxplot(normalize(allData[,-1],method='standardize'))
+```
+
+Veamos correlaciones. 
+```{r}
+cor(allData[,-1])
+```
+
+Nótese que la data de "gender_inequality" y "pobreza" se correlaciona negativamente. El valor es muy cercano a cero, pero practiquemos cambio de monotonia:
+```{r}
+allData$gender_inequality=-1*allData$gender_inequality
+allData$Pobreza=-1*allData$Pobreza
+cor(allData[,-1])
+```
+
+Procesos de clusterización: A través del visionado de los siguientes gráficos se proponen tres cantidades de clusters
+
+```{r}
+## para PAM
+library(factoextra)
+fviz_nbclust(dataClus, pam,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F)
+```
+
+```{r}
+## PARA AGNES
+fviz_nbclust(dataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "agnes")
+```
+
+```{r}
+## PARA JERARQUICO
+fviz_nbclust(dataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "diana")
+```
+
+A continuación, evaluemos resultados. A través del visionado de la silueta concluiremos que la estrategia de partición es el método que mejor se ajusta a nuestro caso.
+```{r,echo=FALSE,message=FALSE}
+###pam
+set.seed(123)
+grupos=3
+res.pam=pam(g.dist,k = grupos,cluster.only = F)
+dataClus$pam=res.pam$cluster
+
+###agnes
+res.agnes<- hcut(g.dist, k =grupos,hc_func='agnes',hc_method = "ward.D")
+dataClus$agnes=res.agnes$cluster
+
+### diana
+res.diana <- hcut(g.dist, k = grupos,hc_func='diana')
+dataClus$diana=res.diana$cluster
+```
+
+```{r}
+fviz_silhouette(res.pam)
+```
+
+```{r}
+fviz_silhouette(res.agnes)
+```
+
+```{r}
+fviz_silhouette(res.diana)
+```
+
+
+
+
+
+**7.c) Análisis de Variables latentes**
+
+```{r,echo=FALSE,message=FALSE}
+dontselect=c("country")
+select=setdiff(names(allData),dontselect) 
+theData=allData[,select]
+library(polycor)
+corMatrix=polycor::hetcor(theData)$correlations
+```
+
+Explorar correlaciones:
+```{r}
+library(ggcorrplot)
+ggcorrplot(corMatrix)
+```
+
+Verificar si datos permiten factorizar:
+```{r}
+library(psych)
+psych::KMO(corMatrix) 
+```
+
+Verificar si la matriz de correlaciones es adecuada
+Hnula: La matriz de correlacion es una matriz identidad
+```{r}
+cortest.bartlett(corMatrix,n=nrow(theData))$p.value>0.05
+```
+Hnula: La matriz de correlacion es una matriz singular.
+```{r}
+library(matrixcalc)
+is.singular.matrix(corMatrix)
+```
+
+Determinar en cuantos factores o variables latentes podríamos redimensionar la data: sugiere 1 
+```{r}
+fa.parallel(theData,fm = 'ML', fa = 'fa',correct = T)
+```
+
+Redimensionar a numero menor de factores. Resultado inicial:
+```{r}
+library(GPArotation)
+resfa <- fa(theData,
+            nfactors = 1,
+            cor = 'mixed',
+            rotate = "varimax",
+            fm="minres")
+print(resfa$loadings)
+```
+
+Resultado mejorado (solo apropiado si hay más de un factor):
+```{r}
+print(resfa$loadings,cutoff = 0.5)
+```
